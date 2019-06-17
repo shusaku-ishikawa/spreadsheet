@@ -17,7 +17,7 @@ import gspread
 from gspread.exceptions import *
 from oauth2client.service_account import ServiceAccountCredentials
 import shutil
-
+import base64   
 import pickle
 import os.path
 from googleapiclient.discovery import build
@@ -40,6 +40,25 @@ def change_download_dir(driver, download_dir):
         }
     })
     return driver
+
+def wait_csv_download(tempdir):
+    downloaded_file = ""
+    counter = 0
+    max_loop_count = 10
+    while True:
+        counter += 1
+        is_complete = False
+        for filename in os.listdir(tempdir):
+            if filename.endswith('.csv'):
+                downloaded_file = os.path.join(tempdir, filename)
+                is_complete = True
+        else:
+            sleep(1)
+        if is_complete:
+            return downloaded_file
+        if counter > max_loop_count:
+            print('CSVダウンロードに失敗しました')
+            return False
 
 ''' Chromeドライバの初期設定 '''
 def init_selenium():
@@ -102,17 +121,7 @@ def download_from_a8(driver, book, tempdir):
     driver.execute_script("arguments[0].click();", csv_export)
     
     ''' ダウンロードを待ってシートに転記 '''
-    downloaded_file = ""
-    while True:
-        is_complete = False
-        for filename in os.listdir(tempdir):
-            if filename.endswith('.csv'):
-                downloaded_file = os.path.join(tempdir, filename)
-                is_complete = True
-        else:
-            sleep(1)
-        if is_complete:
-            break
+    
 
     paste_csv_to_gspread(book, 'A8', downloaded_file, 'A1')
     os.remove(downloaded_file)
@@ -141,16 +150,7 @@ def download_from_a8(driver, book, tempdir):
     driver.execute_script('arguments[0].click();', csv_export)
 
     ''' ダウンロードを待ってシートに転記 '''
-    while True:
-        is_complete = False
-        for filename in os.listdir(tempdir):
-            if filename.endswith('.csv'):
-                downloaded_file = os.path.join(tempdir, filename)
-                is_complete = True
-        else:
-            sleep(1)
-        if is_complete:
-            break
+    downloaded_file = wait_csv_download(tempdir)
     paste_csv_to_gspread(book, 'A8_ポイントレポート', downloaded_file, 'A1')
     
     os.remove(downloaded_file)
@@ -183,17 +183,7 @@ def download_from_afb(driver, book, tempdir):
     driver.find_element_by_xpath('//*[@id="Contents"]/form/div/div/div/div/div/div[1]/table[2]/tbody/tr/td[3]/p/input').click()
     
     ''' ダウンロードを待ってシートに転記 '''
-    downloaded_file = ''
-    while True:
-        is_complete = False
-        for filename in os.listdir(tempdir):
-            if filename.endswith('.csv'):
-                downloaded_file = os.path.join(tempdir, filename)
-                is_complete = True
-        else:
-            sleep(1)
-        if is_complete:
-            break
+    downloaded_file = wait_csv_download(tempdir)
     paste_csv_to_gspread(book, 'AFB', downloaded_file, 'A1')
     os.remove(downloaded_file)
 
@@ -237,17 +227,7 @@ def download_from_actr(driver, book, tempdir):
     driver.find_element_by_id('download_btn').click()
 
     ''' ダウンロード待って転記 '''
-    downloaded_file = ''
-    while True:
-        is_complete = False
-        for filename in os.listdir(tempdir):
-            if filename.endswith('.csv'):
-                downloaded_file = os.path.join(tempdir, filename)
-                is_complete = True
-        else:
-            sleep(1)
-        if is_complete:
-            break
+    downloaded_file = wait_csv_download(tempdir)
     paste_csv_to_gspread(book, 'アクトレ_ポイントレポート', downloaded_file, 'A1')
     os.remove(downloaded_file)
     print('***** アクトレの処理が完了しました ******')
@@ -286,17 +266,7 @@ def download_from_alladmin(driver, book, tempdir):
     driver.find_element_by_xpath('//*[@id="tbl-result-media"]/tbody/tr[1]/td[9]/a').click()
     
     ''' ダウンロードを待って転記 '''
-    downloaded_file = ''
-    while True:
-        is_complete = False
-        for filename in os.listdir(tempdir):
-            if filename.endswith('.csv'):
-                downloaded_file = os.path.join(tempdir, filename)
-                is_complete = True
-        else:
-            sleep(1)
-        if is_complete:
-            break
+    downloaded_file = wait_csv_download(tempdir)
     paste_csv_to_gspread(book, 'NM', downloaded_file, 'A1')
     os.remove(downloaded_file)
     print('***** NMの処理が完了しました ******')
@@ -522,19 +492,8 @@ def yahoo(driver, book, tempdir):
         download_link = driver.find_element_by_xpath('//*[@id="listTable"]/tbody/tr[1]/td[2]/a')
         driver.execute_script("arguments[0].click();", download_link)
 
-        downloaded_file = ''
-        while True:
-            is_complete = False
-            for filename in os.listdir(tempdir):
-                if filename.endswith('.csv'):
-                    downloaded_file = os.path.join(tempdir, filename)
-                    is_complete = True
-            else:
-                sleep(1)
-            if is_complete:
-                break
+        downloaded_file = wait_csv_download(tempdir)
         paste_csv_to_gspread(book, 'YSS_' + account_name, downloaded_file, 'A1')
-        print(downloaded_file)
         os.remove(downloaded_file)
         print(account_name + 'のレポートの貼り付けが完了しました。')
     print('///// レポートダウンロードが完了しました /////')
@@ -543,7 +502,11 @@ def yahoo(driver, book, tempdir):
     print('///// YDNの処理を開始します /////')
     driver.find_element_by_xpath('/html/body/div[1]/div[1]/div[3]/ul/li[3]/a').click()
     driver.find_element_by_link_text('レポート').click()
-
+    driver.find_element_by_xpath('//*[@id="contentsRoot"]/div/div/span/div[2]/div[2]/div[2]/div[2]/div[3]/div/div[1]/table/tbody/tr[1]/td[3]/a').click()
+    
+    downloaded_file = wait_csv_download(tempdir)
+    paste_csv_to_gspread(book, 'YDN_SlimMagazine', downloaded_file, 'A1' )
+    print('SlimMagazineのレポートの貼り付けが完了しました。')
 
     print('///// YDNの処理が完了しました /////')
     print('***** Yahooの処理が完了しました ******')
@@ -562,8 +525,8 @@ def paste_csv_to_gspread(book, sheet_name, csv_file, cell):
     try:
         sheet = book.worksheet(sheet_name)
     except WorksheetNotFound:
-        print('シート: ' + sheet_name + ' が見つかりませんでした。当シートの更新処理をスキップします。')
-        return False
+        print('タブ: ' + sheet_name + ' が見つかりませんでした。新規作成します。')
+        sheet = book.add_worksheet(title=sheet_name, rows=1000, cols=30)
 
     (firstRow, firstColumn) = gspread.utils.a1_to_rowcol(cell)
 
@@ -586,7 +549,7 @@ def paste_csv_to_gspread(book, sheet_name, csv_file, cell):
     return book.batch_update(body)
 
 
-def list_gmail():
+def connect_gmailapi(picklefile, client_id_json):
     """Shows basic usage of the Gmail API.
     Lists the user's Gmail labels.
     """
@@ -597,8 +560,8 @@ def list_gmail():
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    if os.path.exists(picklefile):
+        with open(picklefile, 'rb') as token:
             creds = pickle.load(token)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
@@ -606,25 +569,75 @@ def list_gmail():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'secret_key/client_id.json', scope)
+                client_id_json, scope)
             creds = flow.run_local_server()
         # Save the credentials for the next run
-        with open('token.pickle', 'wb') as token:
+        with open(picklefile, 'wb') as token:
             pickle.dump(creds, token)
 
-    service = build('gmail', 'v1', credentials=creds)
+    return build('gmail', 'v1', credentials=creds)
 
-    # Call the Gmail API
-    results = service.users().labels().list(userId='me').execute()
-    labels = results.get('labels', [])
+def get_shizen_message_id(service, subject_keyword):
 
-    if not labels:
-        print('No labels found.')
-    else:
-        print('Labels:')
-        for label in labels:
-            print(label['name'])
+    msgidlist = []
 
+    query = 'Subject:' + subject_keyword
+
+    # メールIDの一覧を取得する(最大1件)
+    msgidlist = service.users().messages().list(userId='me',maxResults=1,q=query).execute()['messages']
+    if len(msgidlist) == 0:
+        print('メールが取得できませんでした')
+        return None
+    
+    return msgidlist[0]['id']
+
+def download_attachment(service, user_id, msg_id, store_dir):
+
+    """Get and store attachment from Message with given id.
+
+    Args:
+    service: Authorized Gmail API service instance.
+    user_id: User's email address. The special value "me"
+    can be used to indicate the authenticated user.
+    msg_id: ID of Message containing attachment.
+    prefix: prefix which is added to the attachment filename on saving
+    """
+    try:
+        message = service.users().messages().get(userId=user_id, id=msg_id).execute()
+        for part in message['payload']['parts']:
+            newvar = part['body']
+            if 'attachmentId' in newvar:
+                att_id = newvar['attachmentId']
+                att = service.users().messages().attachments().get(userId=user_id, messageId=msg_id, id=att_id).execute()
+                data = att['data']
+                file_data = base64.urlsafe_b64decode(data.encode('UTF-8'))
+                
+                path = os.path.join(store_dir, part['filename'])
+                f = open(path, 'wb')
+                f.write(file_data)
+                f.close()
+                return path
+    except Exception as e:
+        print('An error occurred: %s' % e)  
+
+def from_gmail(book, tempdir):
+    print('***** Gmailの処理を開始します ******')
+
+    picklefile = 'secret_key/token.pickle'
+    clientidjson = 'secret_key/client_id.json'
+    
+    service = connect_gmailapi(picklefile, clientidjson)
+    today, _, _ = get_today_and_month_ago()
+
+    ''' Shizen '''
+    print('////// Shizen CSVの処理を開始します ////////')
+    subject_keyword = 'FoR様' + today.strftime('%Y-%m-%d')
+    msg_id = get_shizen_message_id(service, subject_keyword)
+    downloaded_file = download_attachment(service, 'me', msg_id, download_base_mail_dir)
+    paste_csv_to_gspread(book, 'shizen', downloaded_file, 'A1')
+    print('////// Shizen CSVの処理が完了しました ////////')
+
+    print('***** Gmailの処理が完了しました ******')
 
 ''' 以下メイン処理 '''
 if __name__ == '__main__':
@@ -640,66 +653,71 @@ if __name__ == '__main__':
         print('スプレットシート: ' + book_name + ' が見つかりませんでした')
         sys.exit()
 
-    driver = init_selenium()
+    #driver = init_selenium()
     
     download_base_dir = os.path.join(os.getcwd(), 'temp')
     ''' ダウンロードの基本フォルダがなければ作成 '''
     if not os.path.exists(download_base_dir):
         os.mkdir(download_base_dir)
     
-    ''' a8 '''
-    download_base_a8_dir = os.path.join(download_base_dir, 'a8')
-    if not os.path.exists(download_base_a8_dir):
-        os.mkdir(download_base_a8_dir)
-    change_download_dir(driver, download_base_a8_dir)
-    download_from_a8(driver, book, download_base_a8_dir)
-    ''''''
+    # ''' a8 '''
+    # download_base_a8_dir = os.path.join(download_base_dir, 'a8')
+    # if not os.path.exists(download_base_a8_dir):
+    #     os.mkdir(download_base_a8_dir)
+    # change_download_dir(driver, download_base_a8_dir)
+    # download_from_a8(driver, book, download_base_a8_dir)
+    # ''''''
     
-    ''' AFB '''
-    download_base_afb_dir = os.path.join(download_base_dir, 'afb')
-    if not os.path.exists(download_base_afb_dir):
-        os.mkdir(download_base_afb_dir)
-    change_download_dir(driver, download_base_afb_dir)
-    download_from_afb(driver, book, download_base_afb_dir)
-    ''''''
+    # ''' AFB '''
+    # download_base_afb_dir = os.path.join(download_base_dir, 'afb')
+    # if not os.path.exists(download_base_afb_dir):
+    #     os.mkdir(download_base_afb_dir)
+    # change_download_dir(driver, download_base_afb_dir)
+    # download_from_afb(driver, book, download_base_afb_dir)
+    # ''''''
 
-    ''' アクトレ '''
-    download_base_actr_dir = os.path.join(download_base_dir, 'actr')
-    if not os.path.exists(download_base_actr_dir):
-        os.mkdir(download_base_actr_dir)
-    change_download_dir(driver, download_base_actr_dir)
-    download_from_actr(driver, book, download_base_actr_dir)
-    ''''''
+    # ''' アクトレ '''
+    # download_base_actr_dir = os.path.join(download_base_dir, 'actr')
+    # if not os.path.exists(download_base_actr_dir):
+    #     os.mkdir(download_base_actr_dir)
+    # change_download_dir(driver, download_base_actr_dir)
+    # download_from_actr(driver, book, download_base_actr_dir)
+    # ''''''
 
-    ''' NM '''
-    download_base_nm_dir = os.path.join(download_base_dir, 'nm')
-    if not os.path.exists(download_base_nm_dir):
-        os.mkdir(download_base_nm_dir)
-    change_download_dir(driver, download_base_nm_dir)
-    download_from_alladmin(driver, book, download_base_nm_dir)
-    ''''''
+    # ''' NM '''
+    # download_base_nm_dir = os.path.join(download_base_dir, 'nm')
+    # if not os.path.exists(download_base_nm_dir):
+    #     os.mkdir(download_base_nm_dir)
+    # change_download_dir(driver, download_base_nm_dir)
+    # download_from_alladmin(driver, book, download_base_nm_dir)
+    # ''''''
 
 
-    ''' 酵水素 '''
-    kosuiso(driver, book)
-    ''''''
-    ''' ebis net '''
-    ebis_net(driver, book)
-    ''''''
+    # ''' 酵水素 '''
+    # kosuiso(driver, book)
+    # ''''''
+    # ''' ebis net '''
+    # ebis_net(driver, book)
+    # ''''''
 
-    ''' belta  '''
-    belta_shop(driver, book)
-    ''''''
+    # ''' belta  '''
+    # belta_shop(driver, book)
+    # ''''''
 
     ''' Yahoo '''
-    download_base_yahoo_dir = os.path.join(download_base_dir, 'yahoo')
-    if not os.path.exists(download_base_yahoo_dir):
-        os.mkdir(download_base_yahoo_dir)
-    change_download_dir(driver, download_base_yahoo_dir)
-    yahoo(driver, book, download_base_yahoo_dir)
+    # download_base_yahoo_dir = os.path.join(download_base_dir, 'yahoo')
+    # if not os.path.exists(download_base_yahoo_dir):
+    #     os.mkdir(download_base_yahoo_dir)
+    # change_download_dir(driver, download_base_yahoo_dir)
+    # yahoo(driver, book, download_base_yahoo_dir)
     ''''''
 
-    #list_gmail()
+    ''' メールから '''
+    download_base_mail_dir = os.path.join(download_base_dir, 'mail')
+    if not os.path.exists(download_base_mail_dir):
+        os.mkdir(download_base_mail_dir)
+    from_gmail(book, download_base_mail_dir)
+
     ''' ドライバを閉じる '''
-    driver.close()
+    #driver.close()
 
