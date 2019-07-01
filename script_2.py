@@ -44,7 +44,7 @@ def change_download_dir(driver, download_dir):
 def wait_csv_download(tempdir):
     downloaded_file = ""
     counter = 0
-    max_loop_count = 30
+    max_loop_count = 10
     while True:
         counter += 1
         is_complete = False
@@ -173,29 +173,15 @@ def download_from_afb(driver, book, tempdir):
             driver.execute_script("document.getElementsByName('login_name')[0].setAttribute('value','" + id + "');")
             driver.execute_script("document.getElementsByName('password')[0].setAttribute('value','" + password + "');")
             driver.find_element_by_xpath('//*[@id="pageTitle"]/aside[1]/g-header-loginform/div[1]/form/div/div[3]/m-btn/div/input').click()
-
-            try:
-                ''' 成果が発生しました画像がある場合はそれをクリック ''' 
-                driver.find_element_by_xpath('//*[@id="result-cong"]/a/img').click()
-            except NoSuchElementException as e:
-                ''' 成果が発生しました画像が出ていない場合はパス '''
-                driver.find_element_by_xpath('//*[@id="GlobalMenu"]/li[3]/a').click()
+            driver.find_element_by_xpath('//*[@id="GlobalMenu"]/li[3]/a').click()
             driver.find_element_by_xpath('//*[@id="form_span" and @value="30d"]').click()
-            driver.find_element_by_xpath('//*[@id="Contents"]/form/div/div/div/div/div/div[1]/table[2]/tbody/tr/td[3]/p/input').click()
-            ''' 処理成功時にスクショ削除 ''' 
-            os.remove('element_not_clickable.png')
             break
         except ElementClickInterceptedException:
-            driver.save_screenshot('element_not_clickable.png')
             pass
-
+    driver.find_element_by_xpath('//*[@id="Contents"]/form/div/div/div/div/div/div[1]/table[2]/tbody/tr/td[3]/p/input').click()
+    
     ''' ダウンロードを待ってシートに転記 '''
     downloaded_file = wait_csv_download(tempdir)
-    ''' ダウンロード失敗時はスクショ '''
-    if not downloaded_file:
-        driver.save_screenshot('AFBダウンロード失敗.png')
-        return False
-
     paste_csv_to_gspread(book, 'AFB', downloaded_file, 'A1')
     os.remove(downloaded_file)
 
@@ -285,7 +271,7 @@ def download_from_alladmin(driver, book, tempdir):
     shutil.rmtree(tempdir)
 def next_available_row(worksheet):
     str_list = list(filter(None, worksheet.col_values(1)))  # fastest
-    return len(str_list) + 1
+    return str(len(str_list)+1)
 
 def kosuiso(driver, book):
     print('***** kosuisoの処理を開始します ******')
@@ -408,7 +394,7 @@ def ebis_net(driver, book):
         ascii_code += 1
         print('code: ' + code + ' の処理が完了しました。')
         
-    print('***** ebis netの処理が完了しました ******')
+    print('***** belta shopの処理が完了しました ******')
     
 def belta_shop(driver, book):
     print('***** belta shopの処理を開始します ******')
@@ -504,9 +490,7 @@ def yahoo(driver, book, tempdir):
             account_name = 'SlimBody'
         print(account_name + 'のレポート取得処理を開始します。')
         account_li.click()
-
         download_link = driver.find_element_by_xpath('//*[@id="listTable"]/tbody/tr[1]/td[2]/a')
-        
         driver.execute_script("arguments[0].click();", download_link)
 
         downloaded_file = wait_csv_download(tempdir)
@@ -538,28 +522,15 @@ def get_gspread_book(secret_key, book_name):
     book = gc.open(book_name)
     return book
 
-def clear_sheet(sheet):
-    ''' シートの内容を削除する '''
-    x = [item for item in sheet.row_values(1) if item]
-
-    colchr = chr(64 + len(x)) if len(x) > 0 else 'A'
-    
-    lastrow = next_available_row(sheet) - 1 if next_available_row(sheet) > 1 else 1
-    rangestr = 'A1:' + colchr + str(lastrow)
-    cell_list = sheet.range(rangestr)
-    for cell in cell_list:
-        cell.value = ''
-    sheet.update_cells(cell_list)
-
 def paste_csv_to_gspread(book, sheet_name, csv_file, cell):
     try:
         ''' sheetを取得し、値を初期化 '''
         sheet = book.worksheet(sheet_name)
-        clear_sheet(sheet)
-
+        sheet.clear()
     except WorksheetNotFound:
-        print('タブ: ' + sheet_name + ' が見つかりませんでした。作成してから再度実行してください。')
-        return False
+        print('タブ: ' + sheet_name + ' が見つかりませんでした。新規作成します。')
+        sheet = book.add_worksheet(title=sheet_name, rows=1000, cols=30)
+
     (firstRow, firstColumn) = gspread.utils.a1_to_rowcol(cell)
 
     with open(csv_file, 'r', encoding='shift_jis') as f:
@@ -655,8 +626,6 @@ def from_gmail(book, tempdir):
 
     print('***** Gmailの処理が完了しました ******')
 
-
-
 ''' 以下メイン処理 '''
 if __name__ == '__main__':
     
@@ -674,8 +643,6 @@ if __name__ == '__main__':
     driver = init_selenium()
     
     download_base_dir = os.path.join(os.getcwd(), 'temp')
-    shutil.rmtree(download_base_dir)
-
     ''' ダウンロードの基本フォルダがなければ作成 '''
     if not os.path.exists(download_base_dir):
         os.mkdir(download_base_dir)
